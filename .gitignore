@@ -1,0 +1,38 @@
+# .gitignore for CartMapper Project
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node.js
+node_modules/
+dist/
+build/
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.venv
+env/
+ENV/
+.pytest_cache/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+backend/chroma_db/
+backend/uploads/
+frontend/dist/

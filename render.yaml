@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: cartmapper-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    disk:
+      name: cartmapper-data
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: DEBUG
+        value: "false"
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: CHROMA_PERSIST_DIR
+        value: /var/data/chroma_db
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: QR_UPLOAD_DIR
+        value: /var/data/uploads/qr
+      - key: AUDIO_UPLOAD_DIR
+        value: /var/data/uploads/audio
+      - key: DOCUMENT_UPLOAD_DIR
+        value: /var/data/uploads/documents
+      - key: FRONTEND_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_EXPIRATION_HOURS
+        value: "24"
