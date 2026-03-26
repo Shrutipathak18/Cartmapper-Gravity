@@ -122,18 +122,17 @@ async def upload_csv(
     
     try:
         content = await file.read()
-        
-        # Process CSV
-        documents = await run_in_threadpool(rag_service.process_csv, content)
-        
-        if not documents:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No data could be extracted from the CSV"
-            )
-        
+
+        documents = []
         rag_note = ""
         if settings.GROQ_API_KEY:
+            # Full RAG flow (heavier): parse CSV + build vector store.
+            documents = await run_in_threadpool(rag_service.process_csv, content)
+            if not documents:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No data could be extracted from the CSV"
+                )
             success = await run_in_threadpool(rag_service.setup_rag_chain, documents)
             if not success:
                 raise HTTPException(
@@ -141,25 +140,30 @@ async def upload_csv(
                     detail="Failed to initialize document analysis"
                 )
         else:
+            # Lightweight flow for free instances / no Groq.
+            rag_service.clear()
             rag_note = " RAG indexing skipped because GROQ_API_KEY is not configured."
 
         # Also refresh indoor navigation map using this CSV.
         target_store_id = navigation_service.current_store_id or "sample"
         store_profile = _resolve_store_profile(target_store_id)
+        processed_rows = len(documents)
         try:
-            await run_in_threadpool(
+            indoor_map = await run_in_threadpool(
                 navigation_service.create_map_from_csv,
                 target_store_id,
                 content,
                 store_profile
             )
+            if not settings.GROQ_API_KEY:
+                processed_rows = sum(len(items) for items in indoor_map.products.values())
             map_note = " Indoor map updated with aisle/section routes."
         except Exception as map_error:
             map_note = f" Indoor map update failed: {map_error}"
         
         return DocumentUploadResponse(
             success=True,
-            message=f"Successfully processed {len(documents)} rows.{rag_note}{map_note}",
+            message=f"Successfully processed {processed_rows} rows.{rag_note}{map_note}",
             document_id=file.filename,
             num_chunks=len(rag_service.chunks),
             document_type="csv"
