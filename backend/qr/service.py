@@ -5,8 +5,6 @@ QR code service for encoding and decoding.
 import io
 import json
 from typing import Optional, Tuple
-import cv2
-import numpy as np
 import qrcode
 from PIL import Image
 
@@ -20,6 +18,8 @@ class QRService:
     def decode_qr(self, image_bytes: bytes) -> Optional[str]:
         """Decode a QR code from image bytes."""
         try:
+            import cv2
+            import numpy as np
             # Convert to numpy array
             nparr = np.frombuffer(image_bytes, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -49,6 +49,8 @@ class QRService:
     def decode_qr_from_pil(self, image: Image.Image) -> Optional[str]:
         """Decode QR code from PIL Image."""
         try:
+            import cv2
+            import numpy as np
             # Convert PIL to numpy
             if image.mode != 'RGB':
                 image = image.convert('RGB')

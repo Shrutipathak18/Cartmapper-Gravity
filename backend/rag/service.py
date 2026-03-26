@@ -3,19 +3,10 @@ RAG service for document processing, embeddings, and question answering.
 """
 
 import io
-import os
 from typing import Optional, List, Tuple, Any
 import httpx
-import PyPDF2
-import pandas as pd
-from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
-from langchain_core.runnables import RunnablePassthrough
-from langchain_classic.retrievers.multi_query import MultiQueryRetriever
-from langchain_groq import ChatGroq
 
 from config import get_settings
 
@@ -29,9 +20,9 @@ class RAGService:
     """
     
     def __init__(self):
-        self.documents: List[Document] = []
-        self.chunks: List[Document] = []
-        self.vector_db: Optional[Chroma] = None
+        self.documents: List[Any] = []
+        self.chunks: List[Any] = []
+        self.vector_db: Optional[Any] = None
         self.chain = None
         self.embeddings: Optional[Any] = None
         self.llm = None
@@ -62,6 +53,7 @@ class RAGService:
                 return
             
             try:
+                from langchain_groq import ChatGroq
                 self.llm = ChatGroq(
                     temperature=0,
                     model_name=settings.GROQ_MODEL,
@@ -92,9 +84,11 @@ class RAGService:
             print(f"Error downloading PDF: {e}")
             return None
     
-    def process_pdf(self, pdf_content: bytes) -> List[Document]:
+    def process_pdf(self, pdf_content: bytes) -> List[Any]:
         """Extract text from PDF and create documents."""
         try:
+            import PyPDF2
+            from langchain_core.documents import Document
             pdf_file = io.BytesIO(pdf_content)
             reader = PyPDF2.PdfReader(pdf_file)
             
@@ -115,9 +109,11 @@ class RAGService:
             print(f"Failed to process PDF: {e}")
             raise
     
-    def process_csv(self, csv_content: bytes) -> List[Document]:
+    def process_csv(self, csv_content: bytes) -> List[Any]:
         """Process CSV and create documents from rows."""
         try:
+            import pandas as pd
+            from langchain_core.documents import Document
             df = pd.read_csv(io.BytesIO(csv_content))
             
             documents = []
@@ -134,8 +130,9 @@ class RAGService:
             print(f"Failed to process CSV: {e}")
             raise
     
-    def chunk_documents(self, documents: List[Document]) -> List[Document]:
+    def chunk_documents(self, documents: List[Any]) -> List[Any]:
         """Split documents into chunks for embedding."""
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=3000,
             chunk_overlap=200
@@ -143,9 +140,10 @@ class RAGService:
         chunks = text_splitter.split_documents(documents)
         return chunks
     
-    def create_vector_store(self, chunks: List[Document]) -> Chroma:
+    def create_vector_store(self, chunks: List[Any]) -> Any:
         """Create ChromaDB vector store from document chunks."""
         self._init_embeddings()
+        from langchain_chroma import Chroma
         
         # Clear existing collection if any
         if self.vector_db is not None:
@@ -163,9 +161,10 @@ class RAGService:
         
         return vector_db
     
-    def setup_rag_chain(self, documents: List[Document]) -> bool:
+    def setup_rag_chain(self, documents: List[Any]) -> bool:
         """Set up the complete RAG pipeline."""
         try:
+            from langchain_classic.retrievers.multi_query import MultiQueryRetriever
             # Initialize components
             self._init_embeddings()
             self._init_llm()
@@ -218,7 +217,7 @@ class RAGService:
             # Try fallback to simple retriever
             return self._setup_fallback_chain(documents)
     
-    def _setup_fallback_chain(self, documents: List[Document]) -> bool:
+    def _setup_fallback_chain(self, documents: List[Any]) -> bool:
         """Setup a simple keyword-based retriever as fallback."""
         try:
             self._init_llm()
