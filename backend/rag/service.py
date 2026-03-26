@@ -4,14 +4,13 @@ RAG service for document processing, embeddings, and question answering.
 
 import io
 import os
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Any
 import httpx
 import PyPDF2
 import pandas as pd
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
@@ -34,7 +33,7 @@ class RAGService:
         self.chunks: List[Document] = []
         self.vector_db: Optional[Chroma] = None
         self.chain = None
-        self.embeddings = None
+        self.embeddings: Optional[Any] = None
         self.llm = None
         self._initialized = False
         
@@ -43,6 +42,8 @@ class RAGService:
         if self.embeddings is None:
             print("Slowly initializing embeddings (this may take a while on first run)...")
             try:
+                # Lazy import keeps app startup light in constrained hosting environments.
+                from langchain_huggingface import HuggingFaceEmbeddings
                 self.embeddings = HuggingFaceEmbeddings(
                     model_name=settings.EMBEDDING_MODEL,
                     model_kwargs={'device': 'cpu'},
