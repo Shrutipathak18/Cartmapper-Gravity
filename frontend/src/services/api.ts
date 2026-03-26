@@ -1,6 +1,9 @@
 import axios, { AxiosInstance, AxiosError } from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL?.trim() || '/api'
+const PRODUCTION_API_FALLBACK = 'https://cartmapper-gravity.onrender.com'
+const API_BASE_URL =
+    import.meta.env.VITE_API_URL?.trim() ||
+    (import.meta.env.PROD ? PRODUCTION_API_FALLBACK : '/api')
 
 // Create axios instance
 export const api: AxiosInstance = axios.create({
