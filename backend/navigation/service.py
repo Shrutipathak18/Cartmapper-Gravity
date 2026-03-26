@@ -7,6 +7,7 @@ import heapq
 import io
 import base64
 import re
+import csv
 from typing import Optional, List, Dict, Any, Tuple
 from PIL import Image, ImageDraw, ImageFont
 
@@ -459,11 +460,19 @@ class NavigationService:
         store_profile: Dict
     ) -> IndoorMap:
         """Create a store map from CSV inventory data."""
-        import pandas as pd
+        decoded_csv = None
+        for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+            try:
+                decoded_csv = csv_data.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        if decoded_csv is None:
+            raise ValueError("CSV encoding is not supported")
 
-        df = pd.read_csv(io.BytesIO(csv_data))
-        df = df.dropna(how="all")
-        if df.empty:
+        reader = csv.DictReader(io.StringIO(decoded_csv))
+        rows = list(reader)
+        if not rows or not reader.fieldnames:
             raise ValueError("CSV has no rows to map")
 
         mall_map = IndoorMap(1000, 700)
@@ -478,7 +487,8 @@ class NavigationService:
 
         normalized_cols = {
             col: re.sub(r"[^a-z0-9]+", " ", str(col).lower()).strip()
-            for col in df.columns
+            for col in reader.fieldnames
+            if col
         }
 
         def pick_column(
@@ -497,12 +507,15 @@ class NavigationService:
             return best_col if best_score > 0 else None
 
         def clean_text(value: Any) -> str:
-            if value is None or (isinstance(value, float) and pd.isna(value)):
+            if value is None:
                 return ""
-            return re.sub(r"\s+", " ", str(value)).strip()
+            text = re.sub(r"\s+", " ", str(value)).strip()
+            if text.lower() in {"nan", "none", "null"}:
+                return ""
+            return text
 
         def parse_number(value: Any) -> float:
-            if value is None or (isinstance(value, float) and pd.isna(value)):
+            if value is None:
                 return 0.0
             text = clean_text(value).replace(",", "")
             text = re.sub(r"[^0-9.\-]", "", text)
@@ -548,7 +561,8 @@ class NavigationService:
         # Build navigable in-store locations (prefer aisle/location column).
         discovered_locations: List[str] = []
         if location_source_col:
-            for value in df[location_source_col].tolist():
+            for row in rows:
+                value = row.get(location_source_col, "")
                 location_name = clean_text(value)
                 if location_name:
                     discovered_locations.append(location_name)
@@ -586,7 +600,10 @@ class NavigationService:
 
         # Index products by exact in-store location/aisle.
         mall_map.products = {location_name: [] for location_name in ordered_locations}
-        for i, row in df.iterrows():
+        for i, row in enumerate(rows):
+            if not any(clean_text(v) for v in row.values()):
+                continue
+
             location_name = clean_text(row.get(location_source_col, "")) if location_source_col else ""
             if not location_name:
                 location_name = ordered_locations[0]
