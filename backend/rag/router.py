@@ -4,6 +4,7 @@ RAG router for document upload and question answering.
 
 import base64
 from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
+from fastapi.concurrency import run_in_threadpool
 
 from rag.service import rag_service
 from translation.service import translation_service
@@ -18,8 +19,10 @@ from schemas.document import (
 )
 from auth.dependencies import get_optional_user
 from schemas.auth import UserInfo
+from config import get_settings
 
 router = APIRouter()
+settings = get_settings()
 
 
 def _resolve_store_profile(store_id: str) -> dict:
@@ -67,7 +70,7 @@ async def upload_pdf(
             )
         
         # Process PDF
-        documents = rag_service.process_pdf(content)
+        documents = await run_in_threadpool(rag_service.process_pdf, content)
         
         if not documents:
             raise HTTPException(
@@ -75,18 +78,20 @@ async def upload_pdf(
                 detail="No text could be extracted from the PDF"
             )
         
-        # Setup RAG chain
-        success = rag_service.setup_rag_chain(documents)
-        
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to initialize document analysis"
-            )
+        rag_note = ""
+        if settings.GROQ_API_KEY:
+            success = await run_in_threadpool(rag_service.setup_rag_chain, documents)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to initialize document analysis"
+                )
+        else:
+            rag_note = " RAG indexing skipped because GROQ_API_KEY is not configured."
         
         return DocumentUploadResponse(
             success=True,
-            message=f"Successfully processed {len(documents)} pages",
+            message=f"Successfully processed {len(documents)} pages.{rag_note}",
             document_id=file.filename,
             num_chunks=len(rag_service.chunks),
             document_type="pdf"
@@ -119,7 +124,7 @@ async def upload_csv(
         content = await file.read()
         
         # Process CSV
-        documents = rag_service.process_csv(content)
+        documents = await run_in_threadpool(rag_service.process_csv, content)
         
         if not documents:
             raise HTTPException(
@@ -127,23 +132,26 @@ async def upload_csv(
                 detail="No data could be extracted from the CSV"
             )
         
-        # Setup RAG chain
-        success = rag_service.setup_rag_chain(documents)
-        
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to initialize document analysis"
-            )
+        rag_note = ""
+        if settings.GROQ_API_KEY:
+            success = await run_in_threadpool(rag_service.setup_rag_chain, documents)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to initialize document analysis"
+                )
+        else:
+            rag_note = " RAG indexing skipped because GROQ_API_KEY is not configured."
 
         # Also refresh indoor navigation map using this CSV.
         target_store_id = navigation_service.current_store_id or "sample"
         store_profile = _resolve_store_profile(target_store_id)
         try:
-            navigation_service.create_map_from_csv(
-                store_id=target_store_id,
-                csv_data=content,
-                store_profile=store_profile
+            await run_in_threadpool(
+                navigation_service.create_map_from_csv,
+                target_store_id,
+                content,
+                store_profile
             )
             map_note = " Indoor map updated with aisle/section routes."
         except Exception as map_error:
@@ -151,7 +159,7 @@ async def upload_csv(
         
         return DocumentUploadResponse(
             success=True,
-            message=f"Successfully processed {len(documents)} rows.{map_note}",
+            message=f"Successfully processed {len(documents)} rows.{rag_note}{map_note}",
             document_id=file.filename,
             num_chunks=len(rag_service.chunks),
             document_type="csv"
@@ -193,7 +201,7 @@ async def upload_from_qr_url(
             )
         
         # Process PDF
-        documents = rag_service.process_pdf(content)
+        documents = await run_in_threadpool(rag_service.process_pdf, content)
         
         if not documents:
             raise HTTPException(
@@ -201,18 +209,20 @@ async def upload_from_qr_url(
                 detail="No text could be extracted from the PDF"
             )
         
-        # Setup RAG chain
-        success = rag_service.setup_rag_chain(documents)
-        
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to initialize document analysis"
-            )
+        rag_note = ""
+        if settings.GROQ_API_KEY:
+            success = await run_in_threadpool(rag_service.setup_rag_chain, documents)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to initialize document analysis"
+                )
+        else:
+            rag_note = " RAG indexing skipped because GROQ_API_KEY is not configured."
         
         return DocumentUploadResponse(
             success=True,
-            message=f"Successfully processed {len(documents)} pages from URL",
+            message=f"Successfully processed {len(documents)} pages from URL.{rag_note}",
             document_id=url,
             num_chunks=len(rag_service.chunks),
             document_type="pdf"
