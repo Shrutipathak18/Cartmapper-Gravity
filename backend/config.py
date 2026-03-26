@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     # Groq LLM
     GROQ_API_KEY: Optional[str] = None
     GROQ_MODEL: str = "llama-3.1-8b-instant"
+    ENABLE_RAG: bool = False
     
     # ChromaDB
     CHROMA_PERSIST_DIR: str = "./chroma_db"

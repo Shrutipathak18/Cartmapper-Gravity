@@ -25,6 +25,17 @@ router = APIRouter()
 settings = get_settings()
 
 
+def _rag_runtime_state() -> tuple[bool, str]:
+    """
+    Decide if RAG indexing/query should run in this deployment.
+    """
+    if not settings.ENABLE_RAG:
+        return False, "RAG indexing is disabled to keep memory usage low on this deployment."
+    if not settings.GROQ_API_KEY:
+        return False, "RAG indexing skipped because GROQ_API_KEY is not configured."
+    return True, ""
+
+
 def _resolve_store_profile(store_id: str) -> dict:
     """Resolve store profile for map building, fallback to a generic profile."""
     store = get_store_by_id(store_id) or get_store_by_name(store_id)
@@ -78,8 +89,9 @@ async def upload_pdf(
                 detail="No text could be extracted from the PDF"
             )
         
+        rag_enabled, rag_reason = _rag_runtime_state()
         rag_note = ""
-        if settings.GROQ_API_KEY:
+        if rag_enabled:
             success = await run_in_threadpool(rag_service.setup_rag_chain, documents)
             if not success:
                 raise HTTPException(
@@ -87,7 +99,8 @@ async def upload_pdf(
                     detail="Failed to initialize document analysis"
                 )
         else:
-            rag_note = " RAG indexing skipped because GROQ_API_KEY is not configured."
+            rag_service.clear()
+            rag_note = f" {rag_reason}"
         
         return DocumentUploadResponse(
             success=True,
@@ -123,9 +136,10 @@ async def upload_csv(
     try:
         content = await file.read()
 
+        rag_enabled, rag_reason = _rag_runtime_state()
         documents = []
         rag_note = ""
-        if settings.GROQ_API_KEY:
+        if rag_enabled:
             # Full RAG flow (heavier): parse CSV + build vector store.
             documents = await run_in_threadpool(rag_service.process_csv, content)
             if not documents:
@@ -142,7 +156,7 @@ async def upload_csv(
         else:
             # Lightweight flow for free instances / no Groq.
             rag_service.clear()
-            rag_note = " RAG indexing skipped because GROQ_API_KEY is not configured."
+            rag_note = f" {rag_reason}"
 
         # Also refresh indoor navigation map using this CSV.
         target_store_id = navigation_service.current_store_id or "sample"
@@ -155,7 +169,7 @@ async def upload_csv(
                 content,
                 store_profile
             )
-            if not settings.GROQ_API_KEY:
+            if not rag_enabled:
                 processed_rows = sum(len(items) for items in indoor_map.products.values())
             map_note = " Indoor map updated with aisle/section routes."
         except Exception as map_error:
@@ -213,8 +227,9 @@ async def upload_from_qr_url(
                 detail="No text could be extracted from the PDF"
             )
         
+        rag_enabled, rag_reason = _rag_runtime_state()
         rag_note = ""
-        if settings.GROQ_API_KEY:
+        if rag_enabled:
             success = await run_in_threadpool(rag_service.setup_rag_chain, documents)
             if not success:
                 raise HTTPException(
@@ -222,7 +237,8 @@ async def upload_from_qr_url(
                     detail="Failed to initialize document analysis"
                 )
         else:
-            rag_note = " RAG indexing skipped because GROQ_API_KEY is not configured."
+            rag_service.clear()
+            rag_note = f" {rag_reason}"
         
         return DocumentUploadResponse(
             success=True,
@@ -249,6 +265,13 @@ async def query_documents(
     """
     Ask a question about the uploaded documents.
     """
+    rag_enabled, rag_reason = _rag_runtime_state()
+    if not rag_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=rag_reason
+        )
+
     if not rag_service._initialized:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

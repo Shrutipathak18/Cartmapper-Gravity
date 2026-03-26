@@ -37,6 +37,8 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      - key: ENABLE_RAG
+        value: "false"
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: JWT_ALGORITHM
