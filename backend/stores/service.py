@@ -4,7 +4,6 @@ Store management service.
 
 from typing import Dict, List, Optional, Any
 import io
-import pandas as pd
 
 from stores.registry import (
     STORE_REGISTRY, 
@@ -90,6 +89,7 @@ class StoreService:
         
         try:
             # Validate CSV
+            import pandas as pd
             df = pd.read_csv(io.BytesIO(csv_data))
             
             if df.empty or len(df.columns) == 0:

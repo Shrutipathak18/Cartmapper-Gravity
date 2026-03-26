@@ -4,8 +4,10 @@ Uses Pydantic Settings for environment variable management.
 """
 
 import os
+import json
 from functools import lru_cache
 from typing import Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -29,6 +31,41 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, value):
+        """Accept JSON array or comma-separated values from env."""
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return []
+
+            if raw.startswith("["):
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        return parsed
+                except json.JSONDecodeError:
+                    pass
+
+            return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+        return value
+
+    def cors_origins(self) -> list[str]:
+        """Build normalized CORS origins including FRONTEND_URL."""
+        combined = [*self.ALLOWED_ORIGINS, self.FRONTEND_URL]
+        normalized: list[str] = []
+
+        for origin in combined:
+            if not origin:
+                continue
+            clean = str(origin).strip().strip('"').strip("'").rstrip("/")
+            if clean and clean not in normalized:
+                normalized.append(clean)
+
+        return normalized
     
     # JWT Authentication
     JWT_SECRET_KEY: str = "your-super-secret-key-change-in-production"

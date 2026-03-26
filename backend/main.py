@@ -1,5 +1,5 @@
 """
-CartMapper API - Main FastAPI Application
+CartMapper API - Main FastAPI Application.
 
 A comprehensive indoor navigation and document analysis API
 that supports multi-store management, RAG-based Q&A, voice I/O,
@@ -7,21 +7,20 @@ and QR-based location tracking.
 """
 
 from contextlib import asynccontextmanager
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import os
 
-from config import get_settings
-
-# Import routers
 from auth.router import router as auth_router
-from rag.router import router as rag_router
-from navigation.router import router as navigation_router
-from stores.router import router as stores_router
-from cart.router import router as cart_router
-from qr.router import router as qr_router
 from audio.router import router as audio_router
+from cart.router import router as cart_router
+from config import get_settings
+from navigation.router import router as navigation_router
+from qr.router import router as qr_router
+from rag.router import router as rag_router
+from stores.router import router as stores_router
 from translation.router import router as translation_router
 
 settings = get_settings()
@@ -31,21 +30,22 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Application lifespan handler for startup/shutdown events."""
     # Startup
-    print(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    print(f"📁 ChromaDB directory: {settings.CHROMA_PERSIST_DIR}")
-    print(f"🔗 Frontend URL: {settings.FRONTEND_URL}")
-    
+    print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print(f"ChromaDB directory: {settings.CHROMA_PERSIST_DIR}")
+    print(f"Frontend URL: {settings.FRONTEND_URL}")
+    print(f"Allowed CORS origins: {settings.cors_origins()}")
+
     # Create required directories
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     os.makedirs(settings.AUDIO_UPLOAD_DIR, exist_ok=True)
     os.makedirs(settings.DOCUMENT_UPLOAD_DIR, exist_ok=True)
     os.makedirs(settings.CHROMA_PERSIST_DIR, exist_ok=True)
     os.makedirs(settings.QR_UPLOAD_DIR, exist_ok=True)
-    
+
     yield
-    
+
     # Shutdown
-    print("👋 Shutting down CartMapper API")
+    print("Shutting down CartMapper API")
 
 
 # Create FastAPI application
@@ -54,14 +54,14 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description="""
     CartMapper API provides:
-    - 🔐 Google OAuth & JWT Authentication
-    - 📄 Document Analysis with RAG (PDF/CSV)
-    - 🗺️ Indoor Navigation with A* Pathfinding
-    - 📱 QR Code Generation & Scanning
-    - 🎤 Voice Input/Output
-    - 🌍 Multi-language Translation
-    - 🛒 Shopping Cart Management
-    - 🏬 Multi-store Support
+    - Google OAuth & JWT Authentication
+    - Document Analysis with RAG (PDF/CSV)
+    - Indoor Navigation with A* Pathfinding
+    - QR Code Generation & Scanning
+    - Voice Input/Output
+    - Multi-language Translation
+    - Shopping Cart Management
+    - Multi-store Support
     """,
     lifespan=lifespan,
     docs_url="/docs",
@@ -71,7 +71,9 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=settings.cors_origins(),
+    # Support Netlify preview/production subdomains without manual updates.
+    allow_origin_regex=r"^https://[a-zA-Z0-9-]+\\.netlify\\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -99,7 +101,7 @@ async def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "healthy",
-        "docs": "/docs"
+        "docs": "/docs",
     }
 
 
@@ -116,16 +118,17 @@ async def health_check():
             "cart": "ready",
             "qr": "ready",
             "audio": "ready",
-            "translation": "ready"
-        }
+            "translation": "ready",
+        },
     }
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "main:app",
         host=settings.HOST,
         port=settings.PORT,
-        reload=settings.DEBUG
+        reload=settings.DEBUG,
     )
