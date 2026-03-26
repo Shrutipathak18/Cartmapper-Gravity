@@ -471,8 +471,8 @@ class NavigationService:
             raise ValueError("CSV encoding is not supported")
 
         reader = csv.DictReader(io.StringIO(decoded_csv))
-        rows = list(reader)
-        if not rows or not reader.fieldnames:
+        csv_rows = list(reader)
+        if not csv_rows or not reader.fieldnames:
             raise ValueError("CSV has no rows to map")
 
         mall_map = IndoorMap(1000, 700)
@@ -561,7 +561,7 @@ class NavigationService:
         # Build navigable in-store locations (prefer aisle/location column).
         discovered_locations: List[str] = []
         if location_source_col:
-            for row in rows:
+            for row in csv_rows:
                 value = row.get(location_source_col, "")
                 location_name = clean_text(value)
                 if location_name:
@@ -579,12 +579,12 @@ class NavigationService:
                 ordered_locations.append(loc)
 
         cols = min(5, max(2, int(math.ceil(math.sqrt(len(ordered_locations))))))
-        rows = int(math.ceil(len(ordered_locations) / cols))
+        grid_rows = int(math.ceil(len(ordered_locations) / cols))
 
         x_min, x_max = 120, mall_map.width - 120
         y_min, y_max = 90, mall_map.height - 180
         x_step = (x_max - x_min) / (cols - 1) if cols > 1 else 0
-        y_step = (y_max - y_min) / (rows - 1) if rows > 1 else 0
+        y_step = (y_max - y_min) / (grid_rows - 1) if grid_rows > 1 else 0
 
         for idx, location_name in enumerate(ordered_locations):
             row = idx // cols
@@ -600,7 +600,7 @@ class NavigationService:
 
         # Index products by exact in-store location/aisle.
         mall_map.products = {location_name: [] for location_name in ordered_locations}
-        for i, row in enumerate(rows):
+        for i, row in enumerate(csv_rows):
             if not any(clean_text(v) for v in row.values()):
                 continue
 
