@@ -12,8 +12,10 @@ from schemas.common import (
     TTSRequest,
     TTSResponse
 )
+from config import get_settings
 
 router = APIRouter()
+settings = get_settings()
 
 
 @router.post("/transcribe", response_model=AudioTranscribeResponse)
@@ -136,4 +138,19 @@ async def get_supported_languages():
         "notes": {
             "or": "For improved Odia accent quality, configure AZURE_SPEECH_KEY and AZURE_SPEECH_REGION in backend env."
         }
+    }
+
+
+@router.get("/provider-status")
+async def get_provider_status():
+    """
+    Debug endpoint for active speech provider configuration.
+    """
+    azure_configured = bool(settings.AZURE_SPEECH_KEY and settings.AZURE_SPEECH_REGION)
+    return {
+        "azure_configured": azure_configured,
+        "azure_region": settings.AZURE_SPEECH_REGION if azure_configured else None,
+        "odia_voice": settings.AZURE_ODIA_VOICE,
+        "azure_use_for_odia_only": settings.AZURE_USE_FOR_ODIA_ONLY,
+        "azure_strict_odia": settings.AZURE_STRICT_ODIA
     }

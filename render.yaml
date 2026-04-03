@@ -45,6 +45,8 @@ services:
         value: or-IN-SubhasiniNeural
       - key: AZURE_USE_FOR_ODIA_ONLY
         value: "true"
+      - key: AZURE_STRICT_ODIA
+        value: "true"
       - key: AZURE_TTS_OUTPUT_FORMAT
         value: audio-24khz-48kbitrate-mono-mp3
       - key: ENABLE_RAG

@@ -63,6 +63,10 @@ class AudioService:
         # Current implementation guarantees Azure voice profile only for Odia.
         return normalized == "or"
 
+    def _strict_odia_mode(self, language: str) -> bool:
+        normalized = self._normalize_language(language)
+        return bool(settings.AZURE_STRICT_ODIA and normalized == "or")
+
     def _azure_stt_language(self, language: str) -> str:
         normalized = self._normalize_language(language)
         if normalized == "or":
@@ -220,6 +224,16 @@ class AudioService:
                     print("DEBUG: Azure STT transcription successful")
                     return azure_text, None
                 print(f"DEBUG: Azure STT failed, falling back to Google recognizer: {azure_error}")
+                if self._strict_odia_mode(normalized_lang):
+                    return None, (
+                        "Odia Azure speech recognition failed. "
+                        f"Reason: {azure_error}"
+                    )
+            elif self._strict_odia_mode(normalized_lang):
+                return None, (
+                    "Odia speech recognition is set to Azure-only mode. "
+                    "Please configure AZURE_SPEECH_KEY and AZURE_SPEECH_REGION."
+                )
 
             # Write to temp file
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
@@ -272,6 +286,16 @@ class AudioService:
             if azure_audio:
                 return azure_audio, None
             print(f"DEBUG: Azure TTS failed, falling back to gTTS: {azure_error}")
+            if self._strict_odia_mode(normalized_lang):
+                return None, (
+                    "Odia voice is set to Azure-only mode and Azure TTS failed. "
+                    f"Reason: {azure_error}"
+                )
+        elif self._strict_odia_mode(normalized_lang):
+            return None, (
+                "Odia voice is set to Azure-only mode. "
+                "Please configure AZURE_SPEECH_KEY and AZURE_SPEECH_REGION."
+            )
 
         try:
             # Get TTS language code

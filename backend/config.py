@@ -87,6 +87,7 @@ class Settings(BaseSettings):
     AZURE_SPEECH_REGION: Optional[str] = None
     AZURE_ODIA_VOICE: str = "or-IN-SubhasiniNeural"
     AZURE_USE_FOR_ODIA_ONLY: bool = True
+    AZURE_STRICT_ODIA: bool = True
     AZURE_TTS_OUTPUT_FORMAT: str = "audio-24khz-48kbitrate-mono-mp3"
     
     # ChromaDB
