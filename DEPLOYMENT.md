@@ -14,6 +14,9 @@ This setup keeps frontend behavior unchanged (`VITE_API_URL=/api`) and deploys b
    - `GOOGLE_CLIENT_ID=<your-google-client-id>`
    - `GOOGLE_CLIENT_SECRET=<your-google-client-secret>`
    - `GROQ_API_KEY=<your-groq-key>`
+   - `AZURE_SPEECH_KEY=<your-azure-speech-key>` (optional, recommended for Odia voice quality)
+   - `AZURE_SPEECH_REGION=<your-azure-region>` (for example `centralindia`)
+   - `AZURE_ODIA_VOICE=or-IN-SubhasiniNeural`
 5. Deploy and copy backend URL, for example:
    - `https://cartmapper-backend.onrender.com`
 

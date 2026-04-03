@@ -132,5 +132,8 @@ async def get_supported_languages():
             {"code": "or", "name": "Odia"},
             {"code": "bn", "name": "Bengali"},
             {"code": "ta", "name": "Tamil"},
-        ]
+        ],
+        "notes": {
+            "or": "For improved Odia accent quality, configure AZURE_SPEECH_KEY and AZURE_SPEECH_REGION in backend env."
+        }
     }
