@@ -82,14 +82,6 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "llama-3.1-8b-instant"
     ENABLE_RAG: bool = False
 
-    # Azure Speech (optional, recommended for Odia voice quality)
-    AZURE_SPEECH_KEY: Optional[str] = None
-    AZURE_SPEECH_REGION: Optional[str] = None
-    AZURE_ODIA_VOICE: str = "or-IN-SubhasiniNeural"
-    AZURE_USE_FOR_ODIA_ONLY: bool = True
-    AZURE_STRICT_ODIA: bool = True
-    AZURE_TTS_OUTPUT_FORMAT: str = "audio-24khz-48kbitrate-mono-mp3"
-    
     # ChromaDB
     CHROMA_PERSIST_DIR: str = "./chroma_db"
     CHROMA_COLLECTION_NAME: str = "cartmapper-rag"

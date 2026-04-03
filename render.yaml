@@ -37,18 +37,6 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      - key: AZURE_SPEECH_KEY
-        sync: false
-      - key: AZURE_SPEECH_REGION
-        sync: false
-      - key: AZURE_ODIA_VOICE
-        value: or-IN-SubhasiniNeural
-      - key: AZURE_USE_FOR_ODIA_ONLY
-        value: "true"
-      - key: AZURE_STRICT_ODIA
-        value: "true"
-      - key: AZURE_TTS_OUTPUT_FORMAT
-        value: audio-24khz-48kbitrate-mono-mp3
       - key: ENABLE_RAG
         value: "false"
       - key: JWT_SECRET_KEY

@@ -12,10 +12,8 @@ from schemas.common import (
     TTSRequest,
     TTSResponse
 )
-from config import get_settings
 
 router = APIRouter()
-settings = get_settings()
 
 
 @router.post("/transcribe", response_model=AudioTranscribeResponse)
@@ -29,21 +27,21 @@ async def transcribe_audio(
     """
     try:
         content = await file.read()
-        
+
         text, error = audio_service.transcribe_audio(content, language)
-        
+
         if error and not text:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=error
             )
-        
+
         return AudioTranscribeResponse(
             text=text or "",
             language=language,
             confidence=None  # Google doesn't return confidence for basic API
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -64,13 +62,13 @@ async def text_to_speech(request: TTSRequest):
             request.text,
             request.language
         )
-        
+
         if not audio_bytes:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=error or "TTS generation failed"
             )
-        
+
         return Response(
             content=audio_bytes,
             media_type="audio/mpeg",
@@ -78,7 +76,7 @@ async def text_to_speech(request: TTSRequest):
                 "Content-Disposition": "attachment; filename=speech.mp3"
             }
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -98,21 +96,21 @@ async def text_to_speech_base64(request: TTSRequest):
             request.text,
             request.language
         )
-        
+
         if not audio_bytes:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=error or "TTS generation failed"
             )
-        
+
         audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
-        
+
         return TTSResponse(
             audio_base64=audio_base64,
             format="mp3",
             language=request.language
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -134,23 +132,5 @@ async def get_supported_languages():
             {"code": "or", "name": "Odia"},
             {"code": "bn", "name": "Bengali"},
             {"code": "ta", "name": "Tamil"},
-        ],
-        "notes": {
-            "or": "For improved Odia accent quality, configure AZURE_SPEECH_KEY and AZURE_SPEECH_REGION in backend env."
-        }
-    }
-
-
-@router.get("/provider-status")
-async def get_provider_status():
-    """
-    Debug endpoint for active speech provider configuration.
-    """
-    azure_configured = bool(settings.AZURE_SPEECH_KEY and settings.AZURE_SPEECH_REGION)
-    return {
-        "azure_configured": azure_configured,
-        "azure_region": settings.AZURE_SPEECH_REGION if azure_configured else None,
-        "odia_voice": settings.AZURE_ODIA_VOICE,
-        "azure_use_for_odia_only": settings.AZURE_USE_FOR_ODIA_ONLY,
-        "azure_strict_odia": settings.AZURE_STRICT_ODIA
+        ]
     }
