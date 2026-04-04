@@ -58,7 +58,7 @@ async def text_to_speech(request: TTSRequest):
     Returns MP3 audio file.
     """
     try:
-        audio_bytes, error = audio_service.text_to_speech(
+        audio_bytes, error = await audio_service.text_to_speech(
             request.text,
             request.language
         )
@@ -92,7 +92,7 @@ async def text_to_speech_base64(request: TTSRequest):
     Convert text to speech and return as base64.
     """
     try:
-        audio_bytes, error = audio_service.text_to_speech(
+        audio_bytes, error = await audio_service.text_to_speech(
             request.text,
             request.language
         )

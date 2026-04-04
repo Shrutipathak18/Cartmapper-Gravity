@@ -4,12 +4,19 @@ Audio service for speech recognition and text-to-speech.
 
 import io
 import os
+import re
 import tempfile
 from typing import Optional, Tuple
 import speech_recognition as sr
+from deep_translator import GoogleTranslator
 from gtts import gTTS
 
 from config import get_settings
+
+try:
+    import edge_tts
+except Exception:
+    edge_tts = None
 
 settings = get_settings()
 
@@ -17,10 +24,18 @@ settings = get_settings()
 # Language code mappings
 LANGUAGE_CODES = {
     "en": {"sr": "en-US", "tts": "en"},
-    "hi": {"sr": "hi-IN", "tts": "hi"},
-    "or": {"sr": "or-IN", "tts": "or"},  # Odia
-    "bn": {"sr": "bn-IN", "tts": "bn"},  # Bengali
-    "ta": {"sr": "ta-IN", "tts": "ta"},  # Tamil
+    "hi": {"sr": "hi-IN", "tts": "hi", "tts_tld": "co.in"},
+    "or": {"sr": "or-IN", "tts": "or", "tts_tld": "co.in"},  # Odia
+    "bn": {"sr": "bn-IN", "tts": "bn", "tts_tld": "co.in"},  # Bengali
+    "ta": {"sr": "ta-IN", "tts": "ta", "tts_tld": "co.in"},  # Tamil
+}
+ODIA_SCRIPT_PATTERN = re.compile(r"[\u0B00-\u0B7F]")
+EDGE_VOICE_LOCALES = {
+    "en": "en-US",
+    "hi": "hi-IN",
+    "or": "or-IN",
+    "bn": "bn-IN",
+    "ta": "ta-IN",
 }
 
 
@@ -41,6 +56,99 @@ class AudioService:
         if lang in LANGUAGE_CODES:
             return LANGUAGE_CODES[lang]["tts"]
         return "en"
+
+    def get_tts_tld(self, lang: str) -> Optional[str]:
+        """Get gTTS top-level domain (accent hint) for a language."""
+        if lang in LANGUAGE_CODES:
+            return LANGUAGE_CODES[lang].get("tts_tld")
+        return None
+
+    @staticmethod
+    def _clean_tts_text(text: str) -> str:
+        """Normalize spacing and punctuation that can harm speech rhythm."""
+        normalized = (
+            text.replace("|", ", ")
+            .replace("\n", " ")
+            .replace("\r", " ")
+            .strip()
+        )
+        return " ".join(normalized.split())
+
+    def _prepare_odia_text(self, text: str) -> str:
+        """
+        Ensure Odia TTS receives Odia script whenever possible.
+        If incoming text is mostly non-Odia, auto-translate to Odia.
+        """
+        if not text:
+            return text
+
+        if ODIA_SCRIPT_PATTERN.search(text):
+            return text
+
+        try:
+            translated = GoogleTranslator(source="auto", target="or").translate(text)
+            if translated:
+                return translated
+        except Exception as exc:
+            print(f"DEBUG: Odia pre-translation failed: {exc}")
+
+        return text
+
+    async def _synthesize_with_edge(
+        self,
+        text: str,
+        language: str
+    ) -> Optional[bytes]:
+        """
+        Synthesize speech with Edge neural voices.
+        Returns audio bytes or None when unsupported/unavailable.
+        """
+        if edge_tts is None:
+            return None
+
+        locale = EDGE_VOICE_LOCALES.get(language)
+        if not locale:
+            return None
+
+        try:
+            voices = await edge_tts.list_voices()
+            matching = [
+                voice for voice in voices
+                if voice.get("Locale", "").lower() == locale.lower()
+            ]
+            if not matching:
+                return None
+
+            # Prefer neural voice, then female, then first match.
+            preferred = next(
+                (
+                    v for v in matching
+                    if "neural" in v.get("ShortName", "").lower()
+                    and v.get("Gender", "").lower() == "female"
+                ),
+                None,
+            ) or next(
+                (v for v in matching if "neural" in v.get("ShortName", "").lower()),
+                None,
+            ) or matching[0]
+
+            voice_name = preferred.get("ShortName")
+            if not voice_name:
+                return None
+
+            communicate = edge_tts.Communicate(text=text, voice=voice_name, rate="+0%")
+            chunks = []
+            async for event in communicate.stream():
+                if event.get("type") == "audio" and event.get("data"):
+                    chunks.append(event["data"])
+
+            if not chunks:
+                return None
+
+            return b"".join(chunks)
+        except Exception as exc:
+            print(f"DEBUG: Edge TTS failed for {language}: {exc}")
+            return None
 
     def transcribe_audio(
         self,
@@ -123,7 +231,7 @@ class AudioService:
             print(f"DEBUG: Critical audio processing error: {e}")
             return None, f"Audio processing error: {str(e)}"
 
-    def text_to_speech(
+    async def text_to_speech(
         self,
         text: str,
         language: str = "en"
@@ -132,12 +240,32 @@ class AudioService:
         Convert text to speech.
         Returns (audio_bytes, error_message).
         """
+        clean_text = ""
         try:
+            clean_text = self._clean_tts_text(text or "")
+            if not clean_text:
+                return None, "No text provided for TTS"
+
+            if language == "or":
+                clean_text = self._prepare_odia_text(clean_text)
+                # Prefer neural Odia voice when available.
+                edge_audio = await self._synthesize_with_edge(clean_text, language)
+                if edge_audio:
+                    return edge_audio, None
+
             # Get TTS language code
             lang_code = self.get_tts_language(language)
+            tld = self.get_tts_tld(language)
 
             # Generate speech
-            tts = gTTS(text=text, lang=lang_code, slow=False)
+            try:
+                tts_kwargs = {"text": clean_text, "lang": lang_code, "slow": False}
+                if tld:
+                    tts_kwargs["tld"] = tld
+                tts = gTTS(**tts_kwargs)
+            except Exception:
+                # Some environments reject specific TLDs; retry without it.
+                tts = gTTS(text=clean_text, lang=lang_code, slow=False)
 
             # Save to buffer
             buffer = io.BytesIO()
@@ -150,7 +278,7 @@ class AudioService:
             # Try fallback to English
             if language != "en":
                 try:
-                    tts = gTTS(text=text, lang="en", slow=False)
+                    tts = gTTS(text=clean_text, lang="en", slow=False)
                     buffer = io.BytesIO()
                     tts.write_to_fp(buffer)
                     buffer.seek(0)
